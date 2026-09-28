@@ -70,41 +70,45 @@ client.once("ready", () => {
 client.on("messageCreate", async message => {
     if (message.author.bot || !message.guild) return;
 
-    if (!message.content.startsWith(PREFIX)) {
-        const sticky = commands.get("sticky");
+    const sticky = commands.get("sticky");
 
-        if (sticky?.handleSticky) {
-            await sticky.handleSticky(message).catch(console.error);
+    const isCommand = message.content.startsWith(PREFIX);
+
+    if (isCommand) {
+        const args = message.content
+            .slice(PREFIX.length)
+            .trim()
+            .split(/\s+/);
+
+        const name = args.shift()?.toLowerCase();
+
+        if (name) {
+            const command = commands.get(name);
+
+            if (command) {
+                try {
+                    await command.execute(message, args, {
+                        prefix: PREFIX,
+                        client,
+                        dataDir
+                    });
+                } catch (error) {
+                    console.error(error);
+
+                    if (!message.replied && !message.deferred) {
+                        await message.reply("Something went wrong.");
+                    }
+                }
+
+                if (name === "sticky" || name === "unsticky") {
+                    return;
+                }
+            }
         }
-
-        return;
     }
 
-    const args = message.content
-        .slice(PREFIX.length)
-        .trim()
-        .split(/\s+/);
-
-    const name = args.shift()?.toLowerCase();
-
-    if (!name) return;
-
-    const command = commands.get(name);
-
-    if (!command) return;
-
-    try {
-        await command.execute(message, args, {
-            prefix: PREFIX,
-            client,
-            dataDir
-        });
-    } catch (error) {
-        console.error(error);
-
-        if (!message.replied && !message.deferred) {
-            await message.reply("Something went wrong.");
-        }
+    if (sticky?.handleSticky) {
+        await sticky.handleSticky(message).catch(console.error);
     }
 });
 
