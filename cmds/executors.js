@@ -34,12 +34,16 @@ module.exports = {
                 try {
                     const result = JSON.parse(data);
 
-                    await message.reply(
-                        `📊 **${service} Status**\n` +
-                        `Status: **${result.status ?? "Unknown"}**\n` +
-                        `Version: **${result.version ?? "Unknown"}**\n` +
-                        `Updated: **${result.updated_at ?? "Unknown"}**`
-                    );
+                await message.reply(
+                    `\`\`\`\n` +
+                    `${service}\n` +
+                    `Detected: ${result.detected ?? "Unknown"}\n` +
+                    `Version: ${result.version ?? "Unknown"}\n` +
+                    `Updated: ${result.updateStatus ?? "Unknown"}\n` +
+                    `Unc: ${result.uncPercentage ?? "Unknown"}\n` +
+                    `sUNC: ${result.suncPercentage ?? "Unknown"}\n` +
+                    `\`\`\``
+                );
                 } catch {
                     await message.reply("Invalid API response.");
                 }
