@@ -30,7 +30,7 @@ module.exports = {
                 .slice(0, 50)
                 .map((item, i) => {
                     const name = item.name ?? item.title ?? "Unknown";
-                    const status = item.status ?? "Unknown";
+                    const status = "Updated:" item.updateStatus ?? "Unknown";
 
                     return `${i + 1}. ${name} - ${status}`;
                 })
