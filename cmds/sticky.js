@@ -1,64 +1,86 @@
-const { PermissionsBitField } = require("discord.js");
 const fs = require("fs");
 const path = require("path");
 
-function load(file) {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+const file = path.join(__dirname, "..", "data", "stickies.json");
+
+function load() {
+    if (!fs.existsSync(file)) {
+        fs.writeFileSync(file, "{}");
+    }
+
+    try {
+        return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+        return {};
+    }
 }
 
-function save(file, data) {
-    fs.writeFileSync(file, JSON.stringify(data, null, 4));
+function save(data) {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
 module.exports = {
     name: "sticky",
+    aliases: [],
 
-    async execute(message, args, { dataDir, prefix }) {
-        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-            return message.reply("❌ You need **Manage Messages** permission.");
+    async execute(message, args) {
+        if (!message.member.permissions.has("ManageMessages")) {
+            return message.reply("You need the Manage Messages permission.");
+        }
 
-        const content = args.join(" ");
-        if (!content)
-            return message.reply(`Usage: \`${prefix}sticky <message>\``);
+        const text = args.join(" ").trim();
 
-        const file = path.join(dataDir, "stickies.json");
-        const stickies = load(file);
+        if (!text) {
+            return message.reply("Usage: `!sticky <message>`");
+        }
 
-        stickies[message.channel.id] = {
-            guildId: message.guild.id,
-            content,
-            messageId: null
-        };
+        const data = load();
+        const channelId = message.channel.id;
 
-        const stickyMessage = await message.channel.send({ content });
-
-        stickies[message.channel.id].messageId = stickyMessage.id;
-        save(file, stickies);
-
-        await message.reply("📌 Sticky message set!");
-    },
-
-    async handleSticky(message) {
-        const file = path.join(__dirname, "..", "data", "stickies.json");
-        const stickies = load(file);
-        const sticky = stickies[message.channel.id];
-
-        if (!sticky) return;
-
-        if (sticky.messageId) {
+        if (data[channelId]?.messageId) {
             try {
-                const old = await message.channel.messages.fetch(sticky.messageId);
-                await old.delete().catch(() => {});
+                const oldSticky = await message.channel.messages.fetch(
+                    data[channelId].messageId
+                );
+
+                await oldSticky.delete().catch(() => {});
             } catch {}
         }
 
-        try {
-            const newMessage = await message.channel.send({
-                content: sticky.content
-            });
+        const stickyMessage = await message.channel.send(text);
 
-            sticky.messageId = newMessage.id;
-            save(file, stickies);
+        data[channelId] = {
+            message: text,
+            messageId: stickyMessage.id
+        };
+
+        save(data);
+
+        await message.delete().catch(() => {});
+    },
+
+    async handleSticky(message) {
+        const data = load();
+        const channelId = message.channel.id;
+
+        if (!data[channelId]) return;
+
+        try {
+            if (data[channelId].messageId) {
+                const oldSticky = await message.channel.messages.fetch(
+                    data[channelId].messageId
+                );
+
+                await oldSticky.delete().catch(() => {});
+            }
         } catch {}
+
+        const newSticky = await message.channel.send(
+            data[channelId].message
+        );
+
+        data[channelId].messageId = newSticky.id;
+
+        save(data);
     }
 };
