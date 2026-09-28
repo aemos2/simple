@@ -1,64 +1,111 @@
-const { PermissionsBitField } = require("discord.js");
+require("dotenv").config();
+
+const {
+    Client,
+    GatewayIntentBits
+} = require("discord.js");
+
 const fs = require("fs");
 const path = require("path");
 
-function load(file) {
-    return JSON.parse(fs.readFileSync(file, "utf8"));
+const client = new Client({
+    intents: [
+        GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
+        GatewayIntentBits.GuildMessages,
+        GatewayIntentBits.MessageContent
+    ]
+});
+
+const PREFIX = process.env.PREFIX || "!";
+
+const dataDir = path.join(__dirname, "data");
+
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
 }
 
-function save(file, data) {
-    fs.writeFileSync(file, JSON.stringify(data, null, 4));
+const dataFiles = [
+    "warnings.json",
+    "stickies.json"
+];
+
+for (const file of dataFiles) {
+    const filePath = path.join(dataDir, file);
+
+    if (!fs.existsSync(filePath)) {
+        fs.writeFileSync(filePath, "{}");
+    }
 }
 
-module.exports = {
-    name: "sticky",
+const commands = new Map();
+const cmdsPath = path.join(__dirname, "cmds");
 
-    async execute(message, args, { dataDir, prefix }) {
-        if (!message.member.permissions.has(PermissionsBitField.Flags.ManageMessages))
-            return message.reply("❌ You need **Manage Messages** permission.");
+if (!fs.existsSync(cmdsPath)) {
+    fs.mkdirSync(cmdsPath, { recursive: true });
+}
 
-        const content = args.join(" ");
-        if (!content)
-            return message.reply(`Usage: \`${prefix}sticky <message>\``);
+for (const file of fs.readdirSync(cmdsPath).filter(f => f.endsWith(".js"))) {
+    const command = require(path.join(cmdsPath, file));
 
-        const file = path.join(dataDir, "stickies.json");
-        const stickies = load(file);
+    if (command.name && typeof command.execute === "function") {
+        commands.set(command.name, command);
 
-        stickies[message.channel.id] = {
-            guildId: message.guild.id,
-            content,
-            messageId: null
-        };
+        if (command.aliases) {
+            for (const alias of command.aliases) {
+                commands.set(alias, command);
+            }
+        }
+    }
+}
 
-        const stickyMessage = await message.channel.send({ content });
+client.once("ready", () => {
+    console.log(`Logged in as ${client.user.tag}`);
+    console.log(`Prefix: ${PREFIX}`);
+    console.log(`Loaded ${commands.size} command entries.`);
 
-        stickies[message.channel.id].messageId = stickyMessage.id;
-        save(file, stickies);
+    client.user.setActivity(`${PREFIX}help`);
+});
 
-        await message.reply("📌 Sticky message set!");
-    },
+client.on("messageCreate", async message => {
+    if (message.author.bot || !message.guild) return;
 
-    async handleSticky(message) {
-        const file = path.join(__dirname, "..", "data", "stickies.json");
-        const stickies = load(file);
-        const sticky = stickies[message.channel.id];
+    if (!message.content.startsWith(PREFIX)) {
+        const sticky = commands.get("sticky");
 
-        if (!sticky) return;
-
-        if (sticky.messageId) {
-            try {
-                const old = await message.channel.messages.fetch(sticky.messageId);
-                await old.delete().catch(() => {});
-            } catch {}
+        if (sticky?.handleSticky) {
+            await sticky.handleSticky(message).catch(console.error);
         }
 
-        try {
-            const newMessage = await message.channel.send({
-                content: sticky.content
-            });
-
-            sticky.messageId = newMessage.id;
-            save(file, stickies);
-        } catch {}
+        return;
     }
-};
+
+    const args = message.content
+        .slice(PREFIX.length)
+        .trim()
+        .split(/\s+/);
+
+    const name = args.shift()?.toLowerCase();
+
+    if (!name) return;
+
+    const command = commands.get(name);
+
+    if (!command) return;
+
+    try {
+        await command.execute(message, args, {
+            prefix: PREFIX,
+            client,
+            dataDir
+        });
+    } catch (error) {
+        console.error(error);
+
+        if (!message.replied && !message.deferred) {
+            await message.reply("Something went wrong.");
+        }
+    }
+});
+
+client.login(process.env.TOKEN);
