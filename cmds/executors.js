@@ -1,5 +1,6 @@
 // cmds/status.js
 const https = require("https");
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 
 module.exports = {
     name: "status",
@@ -19,7 +20,6 @@ module.exports = {
                     timeout: 8000
                 }, res => {
                     let data = "";
-
                     res.on("data", chunk => data += chunk);
                     res.on("end", () => {
                         if (res.statusCode !== 200) {
@@ -40,16 +40,33 @@ module.exports = {
                 });
             });
 
-            await message.reply(
+            const content =
                 "```\n" +
-                `${service}\n` +
+                `${result.title || service}\n` +
                 `Detected: ${result.detected ?? "Unknown"}\n` +
                 `Version: ${result.version ?? "Unknown"}\n` +
                 `Updated: ${result.updateStatus ?? "Unknown"}\n` +
-                `Unc: ${result.uncPercentage ?? "Unknown"}\n` +
-                `sUNC: ${result.suncPercentage ?? "Unknown"}\n` +
-                "```"
-            );
+                `Unc: ${result.uncPercentage ?? "Unknown"}%\n` +
+                `sUNC: ${result.suncPercentage ?? "Unknown"}%\n` +
+                "```";
+
+            const row = new ActionRowBuilder();
+
+
+            if (result.websitelink) {
+                row.addComponents(
+                    new ButtonBuilder()
+                        .setLabel("Download / Website")
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(result.websitelink)
+                );
+            }
+
+            if (row.components.length > 0) {
+                await message.reply({ content, components: [row] });
+            } else {
+                await message.reply(content);
+            }
 
         } catch (err) {
             console.error(`[status] ${service}:`, err.message);
