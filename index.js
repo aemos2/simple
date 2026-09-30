@@ -9,6 +9,10 @@ const {
     checkUpdates
 } = require("./updateChecker");
 
+const {
+    checkRobloxUpdates
+} = require("./robloxUpdates");
+
 const fs = require("fs");
 const path = require("path");
 
@@ -83,6 +87,31 @@ client.once("ready", () => {
             checkUpdates(client).catch(console.error);
         }, interval);
     }
+
+    setTimeout(async () => {
+        try {
+            await checkRobloxUpdates(client);
+        } catch (error) {
+            console.error(
+                "Initial Roblox version check failed:",
+                error
+            );
+        }
+    }, 5000);
+    
+    const robloxInterval =
+        Number(process.env.ROBLOX_UPDATE_INTERVAL) || 300000;
+    
+    setInterval(async () => {
+        try {
+            await checkRobloxUpdates(client);
+        } catch (error) {
+            console.error(
+                "Roblox version checker error:",
+                error
+            );
+        }
+    }, robloxInterval);
 });
 
 client.on("messageCreate", async message => {
