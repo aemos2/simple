@@ -5,6 +5,10 @@ const {
     GatewayIntentBits
 } = require("discord.js");
 
+const {
+    checkUpdates
+} = require("./updateChecker");
+
 const fs = require("fs");
 const path = require("path");
 
@@ -65,6 +69,20 @@ client.once("ready", () => {
     console.log(`Loaded ${commands.size} command entries.`);
 
     client.user.setActivity(`${PREFIX}help`);
+
+    const interval = Number(
+        process.env.UPDATE_CHECK_INTERVAL || 300000
+    );
+
+    if (process.env.UPDATE_API_URL) {
+        setTimeout(() => {
+            checkUpdates(client).catch(console.error);
+        }, 5000);
+
+        setInterval(() => {
+            checkUpdates(client).catch(console.error);
+        }, interval);
+    }
 });
 
 client.on("messageCreate", async message => {
