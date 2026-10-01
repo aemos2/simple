@@ -1,4 +1,3 @@
-```js
 const fs = require("fs");
 const path = require("path");
 const { EmbedBuilder } = require("discord.js");
@@ -110,7 +109,7 @@ function buildUpdateEmbed(platform, info) {
                 inline: false
             },
             {
-                name: "Version",
+                name: "Version Number",
                 value: `\`${info.detailedVersion || "Unknown"}\``,
                 inline: false
             },
@@ -228,4 +227,4 @@ module.exports = {
     getRobloxChannel,
     loadConfig
 };
-```
+
