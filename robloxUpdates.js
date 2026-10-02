@@ -1,6 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-const { EmbedBuilder } = require("discord.js");
+
+const {
+    ContainerBuilder,
+    TextDisplayBuilder,
+    SeparatorBuilder,
+    MessageFlags
+} = require("discord.js");
 
 const CONFIG_FILE = path.join(__dirname, "data", "roblox-updates.json");
 const API_URL = "https://weao.xyz/api/versions/current";
@@ -60,7 +66,9 @@ async function getRobloxVersions() {
     });
 
     if (!response.ok) {
-        throw new Error(`WEAO API returned HTTP ${response.status}`);
+        throw new Error(
+            `WEAO API returned HTTP ${response.status}`
+        );
     }
 
     const data = await response.json();
@@ -71,16 +79,19 @@ async function getRobloxVersions() {
             date: data.WindowsDate || null,
             detailedVersion: data.WindowsResponse?.version || null
         },
+
         Mac: {
             version: data.Mac || "Unknown",
             date: data.MacDate || null,
             detailedVersion: data.MacResponse?.version || null
         },
+
         Android: {
             version: data.Android || "Unknown",
             date: data.AndroidDate || null,
             detailedVersion: data.AndroidResponse?.version || null
         },
+
         iOS: {
             version: data.iOS || "Unknown",
             date: data.iOSDate || null,
@@ -89,40 +100,38 @@ async function getRobloxVersions() {
     };
 }
 
-function buildUpdateEmbed(platform, info) {
-    return new EmbedBuilder()
-        .setColor(0xFF0000)
-        .setTitle("LIVE")
-        .setDescription(
-            "**Live update detected!**\n" +
-            "A new ROBLOX LIVE version is out."
+function buildUpdateMessage(platform, info) {
+    const detected = `<t:${Math.floor(Date.now() / 1000)}:F>`;
+
+    const container = new ContainerBuilder()
+        .setAccentColor(0xFF0000)
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                "# LIVE\n" +
+                "## Live update detected!\n" +
+                "A new ROBLOX LIVE version is out."
+            )
         )
-        .addFields(
-            {
-                name: "Platform",
-                value: platform,
-                inline: false
-            },
-            {
-                name: "Roblox Version",
-                value: `\`${info.version}\``,
-                inline: false
-            },
-            {
-                name: "Version",
-                value: `\`${info.detailedVersion || "Unknown"}\``,
-                inline: false
-            },
-            {
-                name: "Detected",
-                value: `<t:${Math.floor(Date.now() / 1000)}:F>`,
-                inline: false
-            }
+        .addSeparatorComponents(
+            new SeparatorBuilder()
         )
-        .setFooter({
-            text: "Roblox Live Version Checker"
-        })
-        .setTimestamp();
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                `**Platform:** ${platform}\n` +
+                `**Roblox Version:** \`${info.version}\`\n` +
+                `**Date:** ${detected}`
+            )
+        )
+        .addSeparatorComponents(
+            new SeparatorBuilder()
+        )
+        .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+                "-# Roblox Version Checker"
+            )
+        );
+
+    return container;
 }
 
 async function checkRobloxUpdates(client, options = {}) {
@@ -142,12 +151,16 @@ async function checkRobloxUpdates(client, options = {}) {
 
     const versions = await getRobloxVersions();
     const previousVersions = config.lastVersions;
+
     const changedPlatforms = [];
 
     if (previousVersions) {
         for (const platform of PLATFORMS) {
-            const oldVersion = previousVersions[platform]?.version;
-            const newVersion = versions[platform]?.version;
+            const oldVersion =
+                previousVersions[platform]?.version;
+
+            const newVersion =
+                versions[platform]?.version;
 
             if (
                 oldVersion &&
@@ -167,13 +180,25 @@ async function checkRobloxUpdates(client, options = {}) {
         ? PLATFORMS
         : changedPlatforms;
 
+    if (platformsToSend.length === 0) {
+        config.lastVersions = versions;
+        saveConfig(config);
+
+        return {
+            success: true,
+            updated: false,
+            versions
+        };
+    }
+
     const channel = await client.channels
         .fetch(config.channelId)
         .catch(() => null);
 
     if (
-        platformsToSend.length > 0 &&
-        (!channel || !channel.isTextBased() || !channel.send)
+        !channel ||
+        !channel.isTextBased() ||
+        !channel.send
     ) {
         return {
             success: false,
@@ -183,27 +208,26 @@ async function checkRobloxUpdates(client, options = {}) {
     }
 
     for (const platform of platformsToSend) {
-        const embed = buildUpdateEmbed(
+        const message = buildUpdateMessage(
             platform,
             versions[platform]
         );
 
         await channel.send({
-            content: "@here",
-            embeds: [embed],
+            components: [message],
+            flags: MessageFlags.IsComponentsV2,
             allowedMentions: {
-                parse: ["everyone"]
+                parse: []
             }
         });
     }
 
-    // Save only after successful notification sending.
     config.lastVersions = versions;
     saveConfig(config);
 
     return {
         success: true,
-        updated: platformsToSend.length > 0,
+        updated: true,
         changedPlatforms: platformsToSend,
         versions
     };
@@ -211,7 +235,9 @@ async function checkRobloxUpdates(client, options = {}) {
 
 function setRobloxChannel(channelId) {
     const config = loadConfig();
+
     config.channelId = channelId;
+
     saveConfig(config);
 }
 
@@ -227,4 +253,3 @@ module.exports = {
     getRobloxChannel,
     loadConfig
 };
-
